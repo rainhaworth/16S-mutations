@@ -1,5 +1,8 @@
 from Bio import SeqIO
-from collections import defaultdict, Counter
+from collections import defaultdict
+import numpy as np
+from utils.find_gapped import find_gapped
+import time
 
 # create gapped kmers from universal kmers
 def get_univ_kmers(fn='./universal-residues-ecoli.txt', k=6, maxsize=100):
@@ -22,42 +25,40 @@ def get_univ_kmers(fn='./universal-residues-ecoli.txt', k=6, maxsize=100):
 
 # search sequences for candidate universal kmers
 def search_for_kmers(kmers, threshold=0.5, fn='./SILVA_138.2_SSURef_NR99_tax_silva_filtered.fasta'):
-    kmer_counts = defaultdict(int)
+    kmer_counts = np.zeros(len(kmers), dtype=int)
     kmers_of_interest = set()
     total_seqs = 0
+
+    # make numpy arrays
+    kmer_chars = np.array([[x[0] for x in kmer] for kmer in kmers])
+    kmer_offs = np.array([[x[1] for x in kmer] for kmer in kmers])
 
     for h,i in enumerate(SeqIO.parse(fn, 'fasta')):
         d,s,L = str(i.description), str(i.seq).upper().replace('T','U'), len(i.seq)
         if 'eukaryota' in d.lower(): continue
 
         total_seqs += 1
-        for k in kmers:
-            klen = k[-1][1] + 1
-            for i in range(0, len(s)+1-klen):
-                subseq = s[i:i+klen]
-                bp_found = [subseq[bp[1]] == bp[0] for bp in k]
-                if min(bp_found) == True:
-                    kmer_counts[k] += 1
-                    break
+        kmer_counts += find_gapped(s, kmer_chars, kmer_offs)
 
         print(total_seqs,end='\r')
-        if total_seqs == 100000: break
+        if total_seqs == 100: break
 
-    for k,v in sorted(kmer_counts.items(),key=lambda x:x[1]):
+    for i,v in enumerate(kmer_counts):
         if v/total_seqs > threshold:
-            kmers_of_interest.add(k)
+            kmers_of_interest.add(kmers[i])
 
     print()
     print(f"k-mers used for analysis: {len(kmers)}")
     print(f"Observed frequency threshold: {threshold}")
     print(f"Sequences analyzed: {total_seqs}")
-    print(f"Total k-mers observed: {len(kmer_counts)}")
-    print(f"Total k-mers possible: {4**klen}")
+    print(f"Total k-mers found: {sum(kmer_counts)}")
     print(f"Number of biomarker k-mers identified: {len(kmers_of_interest)}")
     
-    return kmers_of_interest, kmer_counts
+    return kmers_of_interest, kmer_counts, kmer_counts / total_seqs
 
 if __name__ == '__main__':
-    km = get_univ_kmers()
-    koi, kc = search_for_kmers(km)
-    print(kc)
+    st = time.time()
+    km = get_univ_kmers(k=8)
+    koi, kc, kf = search_for_kmers(km)
+    print(kf)
+    print('time:', time.time() - st)
