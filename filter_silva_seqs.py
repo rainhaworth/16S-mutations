@@ -1,12 +1,18 @@
 from Bio import SeqIO
 
 f = 'SILVA_138.2_SSURef_NR99_tax_silva.fasta'
-f_metadata = set('.'.join(i.strip().split('\t')[:3]) for h, i in enumerate(open('SILVA_138.2_SSURef_Nr99.full_metadata'))
-                 if 'metagenome assembled genome' not in i.strip().split('\t')[10]
-                 and 'partial' not in i.strip().split('\t')[10]
-                 and h > 0
-                 and float(i.strip().split('\t')[38]) > 90
-                 and float(i.strip().split('\t')[44]) > 90)
+f_metadata = set()
+
+for line in open('SILVA_138.2_SSURef_Nr99.full_metadata', 'r'):
+  elems = line.strip().split('\t')
+  try:
+    assert 'metagenome' not in elems[10]
+    assert float(elems[37]) == 100.0
+    f_metadata.add('.'.join(elems[:3]))
+  except:
+    continue
+
+print(len(f_metadata), 'IDs from metadata')
 
 seqs_before_filtering = 0
 seqs_after_filtering = 0
